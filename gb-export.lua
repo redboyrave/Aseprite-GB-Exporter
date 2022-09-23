@@ -18,15 +18,6 @@
 
 -- ONLY WORKS WITH A SINGLE TILEMAP LAYER
 
---REMAINING THINGS TO DO:
---  RECEIVE USER INPUT FOR:
---   |-> INITAL TILE INDEX (0,1,etc) - (KEEP IN MIND FOR THE GBDK IS HAS TO START AT 0)
---!   |-> BOOL FOR ONLY TILES, OR TILES AND MAP -- SETUP BUT NOT IMPLEMENTED
---!!   |-> DONE-ISH -- FILEPATH TO SAVE -- SETUP BUT NOT IMPLEMENTED
---!!  SAVE TO FILE
---!  FORMAT THE FILE TO A .C FILE (MAYBE) (const unsigned char tileset = *ARRAY GOES HERE*) 
---  CREATE AN ARRAY FOR THE MAP, NOT ONLY THE TILES
---   |-> FIGURE OUT HOW TO SAVE THE TILE INDEX TO AN ARRAY AND EXPORT THAT
 
 local img = app.activeImage
 local sprt = app.activeSprite
@@ -209,9 +200,7 @@ local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURN
                 if (pixel & 1) ~= 0 then  -- 1 IN BINARY = 01 
                     lo_bit = lo_bit | (1 << range_x-x) -- THE OPERATOR (1<< n-0) would be invalid, so we add (lo_bit |) 
                 end
-                -- if (px & 1) ~= 0 then
-                    -- lo = lo | (1 << 7-cx)
-                -- end
+                
                 if (pixel & 2) ~= 0 then -- 2 IN BINARY == 10
                     hi_bit = hi_bit | (1 << range_x-x)
                 end
