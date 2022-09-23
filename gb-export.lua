@@ -1,9 +1,14 @@
--- ASEPRITE tileset and tilemap C exporter for use with GBDK  --  version 0.2
+-- ASEPRITE tileset and tilemap C exporter for use with GBDK  --  version 0.25
+    --SEPTEMBER/2022--
 
 
 --DISCLAIMER--
 -- I'm an amateur programer, so the code may not be as optimal as it could be
 -- also, some notes may seem over explained, but they are for me to understand and remember what everything does.
+
+--helpeful resources :
+    --https://eldred.fr/gb-asm-tutorial/part1/tiles.html
+    --https://youtu.be/txkHN6izK2Y?t=344
 
 -- Big Thanks to Aseprite community, specifically:
 -- Jeremy Behreandt, whose tutorial helped get started on the script
@@ -16,10 +21,10 @@
 --REMAINING THINGS TO DO:
 --  RECEIVE USER INPUT FOR:
 --   |-> INITAL TILE INDEX (0,1,etc) - (KEEP IN MIND FOR THE GBDK IS HAS TO START AT 0)
---   |-> BOOL FOR ONLY TILES, OR TILES AND MAP -- SETUP BUT NOT IMPLEMENTED
---   |-> FILEPATH TO SAVE -- SETUP BUT NOT IMPLEMENTED
---  SAVE TO FILE
---  FORMAT THE FILE TO A .C FILE (MAYBE) (const unsigned char tileset = *ARRAY GOES HERE*) 
+--!   |-> BOOL FOR ONLY TILES, OR TILES AND MAP -- SETUP BUT NOT IMPLEMENTED
+--!!   |-> DONE-ISH -- FILEPATH TO SAVE -- SETUP BUT NOT IMPLEMENTED
+--!!  SAVE TO FILE
+--!  FORMAT THE FILE TO A .C FILE (MAYBE) (const unsigned char tileset = *ARRAY GOES HERE*) 
 --  CREATE AN ARRAY FOR THE MAP, NOT ONLY THE TILES
 --   |-> FIGURE OUT HOW TO SAVE THE TILE INDEX TO AN ARRAY AND EXPORT THAT
 
@@ -30,13 +35,19 @@ local n_layer = 0
 local filepath = sprt.filename
 print(filepath)
 
-local extension = (string.find(filepath,".aseprite")) - 1
-filepath = string.sub(filepath,1,extension)
+local tile_amount = 0
+-- local extension = string.find(filepath,"")
+-- print(extension)
 
+local folder = string.find(filepath,"[^\\]+$") -1
+filepath = string.sub(filepath,1,folder)
 print(filepath)
 
 local file_extension = ""
-local 
+local tile_name = ""
+local map_name = ""
+local exp_tileset = false
+local exp_tilemap = false
 
 -- INITIAL CHECKS FOR VALID FILE -- 
 
@@ -108,19 +119,18 @@ local dlg = Dialog {title = "GB TILE EXPORTER"}
 
 dlg:label{
     id = "label-01",
-    text = "Pick a location and a name to save the file."
+    text = "Pick a location to save the file."
 }
 dlg:newrow()
 
 dlg:label{
     id = "label-02",
-    text = "No aseprite file will be overwritten"
+    text = "Only the folder will be used,"
 }
 dlg:file{
     id = "filepath",
     label = "Save Location",
     save = true,
-    filetypes = {""}
 } 
 
 dlg:entry{
@@ -222,7 +232,7 @@ local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURN
     --     hex_string = hex_string .. "\n"
         
 
-    print(hex)
+    -- print(hex)
     
     return hex -- RETURNS A FORMATED STRING WITH HEX VALUES OF THE TILES;
     
@@ -232,6 +242,7 @@ local function export_tileset(tileset) --HANDLES SINGLE TILESET PASSED FROM EXPO
     local t = {}
     local grid = tileset.grid
     local size = grid.tileSize
+    tile_amount = #tileset
 
         for i = 0, #tileset-1 do
             local tile = tileset:getTile(i)
@@ -251,7 +262,7 @@ local function export_tilesets(tilesets) --RECEIVES ALL THE TILESETS AND LOOPS, 
     local t = {}
     for _,tileset in ipairs(tilesets) do
         table.insert(t,export_tileset(tileset))
-        print(tileset)
+        -- print(tileset)
     end
     return t
     --RETURNS A LIST OF LISTS
@@ -262,18 +273,49 @@ end
 
 
 local function save_to_file(_tosave)
-    --TODO: FIX IMPLEMENTATION OF THE SAVE TO FILE FUNTIOM TO INCLUDE DESIRED FOLDER
-    File = io.open(filepath.."tileset.c","w")
-    File:write(_tosave)
-    File:close()
-    Header = io.open(filepath.."tileset.h","w")
-    Header:write("extern const unsigned char tileset[];")
-    Header:close()
+    --TODO: FIX IMPLEMENTATION OF THE SAVE TO FILE FUNTION TO INCLUDE DESIRED FOLDER
+    local file = io.open(filepath..tile_name..".c","w")
+    file:write(_tosave)
+    file:close()
+    local header = io.open(filepath..tile_name..".h","w")
+    local h_file = ""
+    h_file = h_file .."extern #define "..tile_name.."_size "..tostring(tile_amount).."\n \n" -- creates a #define with the ammount of tiles in the array
+    h_file = h_file .."extern const unsigned char ".. tile_name.."[];"
+    header:write(h_file)
+    header:close()
 end
 
 
 local function parse_input()
-    dlg_data
+    tile_name = dlg_data.tilename
+    map_name = dlg_data.mapname
+    if (dlg_data.filepath ~= "") then
+        filepath = dlg_data.filepath
+        folder = string.find(filepath,"[^\\]+$") -1
+        filepath = string.sub(filepath,1,folder)
+        
+        print(filepath)
+    end
+    exp_tileset = dlg_data.checkTileset
+    exp_tilemap = dlg_data.checkTilemap
+
+    print(exp_tileset)
+    print(exp_tilemap)
+end
+
+local function export_c(tab)
+    local str = ""
+    str = str.. "// GENERATED USING ASEPRITE GB EXPORTER BY GABRIEL REIS// \n \n \n" -- header i suppose
+
+    str = str.. "const unsigned char " .. tile_name .. "[] = {\n"
+    
+    for i, tileset in ipairs(tab) do                    -- TILESET IN TILESETS
+        for j, tiles in ipairs(tileset) do              -- TILES IN TILESET
+            str = str .. tiles
+        end
+    end
+    str = str .. "};"
+    return str
 end
 
 
@@ -288,16 +330,11 @@ end
 
 local tab = export_tilesets(sprt.tilesets) -- CALLS THE 'MAIN' FUNCTION ON THE CODE
 -- local pixel_list = {}                      -- IS A TABLE OF ALL THE PIXEL VALUES FOR EVERY PIXEL
-local strg = "const unsigned char tileset[] = {\n"                            -- IS THE STRING TO BE USED WHEN EXPORTING THE TILEMAP
+local strg = ""                        -- IS THE STRING TO BE USED WHEN EXPORTING THE TILEMAP
 
-for i, tileset in ipairs(tab) do                    -- TILESET IN TILESETS
-    for j, tiles in ipairs(tileset) do              -- TILES IN TILESET
-                strg = strg .. tiles
-                -- table.insert(pixel_list,tiles)
 
-        end
-    end
-strg = strg .."};"
+            strg = export_c(tab)
+-- strg = strg .."};"
 print(strg)
 
--- save_to_file(strg)
+save_to_file(strg)
