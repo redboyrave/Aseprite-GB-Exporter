@@ -1,4 +1,4 @@
--- ASEPRITE tileset and tilemap C exporter for use with GBDK  --  version 0.25
+-- ASEPRITE tileset and tilemap C exporter for use with GBDK  --  version 0.3
     --SEPTEMBER/2022--
 
 
@@ -13,7 +13,7 @@
 -- Big Thanks to Aseprite community, specifically:
 -- Jeremy Behreandt, whose tutorial helped get started on the script
 -- 
--- boombuler, for his version of the plugin, 
+-- boombuler, for his version of the plugin, (found here : https://github.com/boombuler/aseprite-gbexport)
 -- that helped a lot during debugging, and figuring out how to output the tiles
 
 -- ONLY WORKS WITH A SINGLE TILEMAP LAYER
@@ -28,26 +28,28 @@
 --  CREATE AN ARRAY FOR THE MAP, NOT ONLY THE TILES
 --   |-> FIGURE OUT HOW TO SAVE THE TILE INDEX TO AN ARRAY AND EXPORT THAT
 
+local img = app.activeImage
 local sprt = app.activeSprite
 local tile_layers ={}
 local n_layer = 0
+local file_format = ""
 
 local filepath = sprt.filename
-print(filepath)
+-- print(filepath)
 
 local tile_amount = 0
--- local extension = string.find(filepath,"")
--- print(extension)
 
 local folder = string.find(filepath,"[^\\]+$") -1
 filepath = string.sub(filepath,1,folder)
-print(filepath)
+-- print(filepath)
 
-local file_extension = ""
 local tile_name = ""
 local map_name = ""
-local exp_tileset = false
-local exp_tilemap = false
+local do_set = false -- EXPORT TILESET
+local do_map = false -- EXPORT TILEMAP
+
+local w = 0 -- MAP WIDTH
+local h = 0 -- MAP HEIGHT
 
 -- INITIAL CHECKS FOR VALID FILE -- 
 
@@ -182,9 +184,9 @@ dlg:button{
 
 dlg:show{wait=true}
 
---FUNCTIONS ARE DECLARED HERE--
+--FUNCTIONS ARE DECLARED HERE-- 
 
-local dlg_data = dlg.data
+local dlg_data = dlg.data -- SAVES USER INPUT
 
 local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURNS THE INDEX OF THE COLOR USED, WHICH IS WHY IT'S MULTIPLIED BY 75
     
@@ -195,7 +197,6 @@ local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURN
     -- THE PAIRS ARE THEM SEPARATED INTO  "HIGH BITE" (LEFT) AND "LOW BITE" (RIGHT)
     -- THEM YOU JOIN THE HIGHS AND THE LOWS, AND END UP WITH TWO BYTES (8 DIGITS EACH)
     -- THEN YOU PUT THE LOW BYTES FIRST AND THE HIGHS SECOND
-        -- THAT GIVES YOU 2 ROWS OF PIXELS OF THE TILE
 
     local hex = ""
     local range_x = tile.width-1
@@ -221,15 +222,6 @@ local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURN
                 
             end
             hex = hex.."\n"
-        
-    -- TODO : FIGURE TILES OUT
-    -- I WAS COMPLETELY WRONG ABOUT HOW THE TILE CONVERSION WORKS
-
-    -- SOMETHING TO THINK ABOUT IS ORGANIZING THE PALETTE BEFORE HAND FROM BRIGHTEST TO DARKEST, OTHERWISE THIS COULD GIVE UNDESIRED RESULTS
-    -- local hex_string = ""
-    --         local index = i+j*tile.width
-    --         hex_string = hex_string .."0x" .. string.format("%02x",tile:getPixel(i,j)*0x55) ..", "
-    --     hex_string = hex_string .. "\n"
         
 
     -- print(hex)
@@ -272,15 +264,12 @@ end
 --TODO : FIGURE OUT A WAY TO MAKE THIS HIERARCHY SIMPLER 
 
 
-local function save_to_file(_tosave)
+local function save_to_C_file(c_file,h_file)
     --TODO: FIX IMPLEMENTATION OF THE SAVE TO FILE FUNTION TO INCLUDE DESIRED FOLDER
     local file = io.open(filepath..tile_name..".c","w")
-    file:write(_tosave)
+    file:write(c_file)
     file:close()
     local header = io.open(filepath..tile_name..".h","w")
-    local h_file = ""
-    h_file = h_file .."extern #define "..tile_name.."_size "..tostring(tile_amount).."\n \n" -- creates a #define with the ammount of tiles in the array
-    h_file = h_file .."extern const unsigned char ".. tile_name.."[];"
     header:write(h_file)
     header:close()
 end
@@ -296,45 +285,92 @@ local function parse_input()
         
         print(filepath)
     end
-    exp_tileset = dlg_data.checkTileset
-    exp_tilemap = dlg_data.checkTilemap
+    do_set = dlg_data.checkTileset
+    do_map = dlg_data.checkTilemap
+    file_format = dlg_data.fileformat
 
-    print(exp_tileset)
-    print(exp_tilemap)
+    -- print(exp_tileset)
+    -- print(exp_tilemap)
 end
 
-local function export_c(tab)
-    local str = ""
-    str = str.. "// GENERATED USING ASEPRITE GB EXPORTER BY GABRIEL REIS// \n \n \n" -- header i suppose
+local function export_c(tab,map)
+    local c_file = ""
+    local h_file = ""
+    c_file = c_file.. "// GENERATED USING ASEPRITE GB EXPORTER BY GABRIEL REIS// \n \n \n" -- header i suppose
+    h_file = c_file
 
-    str = str.. "const unsigned char " .. tile_name .. "[] = {\n"
-    
-    for i, tileset in ipairs(tab) do                    -- TILESET IN TILESETS
-        for j, tiles in ipairs(tileset) do              -- TILES IN TILESET
-            str = str .. tiles
-        end
+    if do_map then
+        h_file = h_file.. "#define "..map_name.."_width "..tostring(w).."\n"
+        h_file = h_file.. "#define "..map_name.."_height "..tostring(h).."\n"
     end
-    str = str .. "};"
-    return str
+
+    if do_set then   --CHECKS IF TILESET IS TO BE EXPORTED
+        c_file = c_file.. "const unsigned char " .. tile_name .. "[] = {\n"
+        h_file = h_file.. "extern const unsigned char ".. tile_name .."[]; \n\n"
+        
+        for i, tileset in ipairs(tab) do                    -- TILESET IN TILESETS
+            for j, tiles in ipairs(tileset) do              -- TILES IN TILESET
+                c_file = c_file .. tiles
+            end
+        end
+        c_file = c_file .. "}; \n \n \n"
+        h_file = h_file .. "\n \n \n"
+    end
+
+    if do_map then -- CHECKS IF MAP IS TO BE EXPORTED
+        c_file = c_file .. "const unsigned char " .. map_name .. "[] = {\n" .. map .. "};"
+        h_file = h_file .. "extern const unsigned char " .. map_name .. "[];"
+    end
+
+    return c_file, h_file
 end
 
+local function generate_tilemap()
+    local map = ""
+    local tilemap = app.activeCel.image
+    w = tilemap.width
+    h = tilemap.height
+    local n =0
+    for i in tilemap:pixels() do
+        if (n%tilemap.width == 0) then
+            if n~=0 then
+                map = map.."\n"            
+            end
+        end
+        -- print(pix_col.tileI(i()))
+        map = map.."0x" .. string.format("%02x",i())..", "
+        -- map = map ..", "
+        -- print(n)
+        n = n+1
+        -- print("tile is ",i()) --DON'T ASK ME WHY, BUT i() RETURNS THE INDEX OF THE TILES IN THE MAP, SO I'LL TAKE IT
+    end
 
+    return map
+
+
+end
+
+local function do_code()
+    
+    
+    local tab = export_tilesets(sprt.tilesets) -- CALLS THE 'MAIN' FUNCTION ON THE CODE
+    local map = generate_tilemap()
+    
+    local c_file ,h_file                        -- IS THE STRING TO BE USED WHEN EXPORTING THE TILEMAP
+    if (file_format == "C") then
+        c_file, h_file = export_c(tab, map)
+        save_to_C_file(c_file,h_file)
+    end
+    print(h_file.."\n")
+    print(c_file)
+    
+end
 --CODE EXECUTION--
 
 if dlg_data.confirm then
     parse_input()
+    do_code()  --CODE GOES IN THERE TO STOP EXECUTION IF USER DIDN'T CLICK IN OK
 end
 if dlg_data.cancel then
     return
 end
-
-local tab = export_tilesets(sprt.tilesets) -- CALLS THE 'MAIN' FUNCTION ON THE CODE
--- local pixel_list = {}                      -- IS A TABLE OF ALL THE PIXEL VALUES FOR EVERY PIXEL
-local strg = ""                        -- IS THE STRING TO BE USED WHEN EXPORTING THE TILEMAP
-
-
-            strg = export_c(tab)
--- strg = strg .."};"
-print(strg)
-
-save_to_file(strg)
