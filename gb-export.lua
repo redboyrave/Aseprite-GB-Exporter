@@ -303,6 +303,9 @@ local function export_c(tab,map)
 
     if do_set then   --CHECKS IF TILESET IS TO BE EXPORTED
         c_file = c_file.. "const unsigned char " .. tile_name .. "[] = {\n"
+
+        h_file = h_file .. "\n".."#define ".. tile_name.."_size "..tostring(tile_amount).."\n\n\n"
+
         h_file = h_file.. "extern const unsigned char ".. tile_name .."[]; \n\n"
         
         for i, tileset in ipairs(tab) do                    -- TILESET IN TILESETS
