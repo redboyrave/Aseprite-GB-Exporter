@@ -1,6 +1,7 @@
 GAMEBOY / GBDK C EXPORTER FOR ASEPRITE
 
 DISCLAIMER
+
 This code can probably be optimized, but i'm a novice programmer at best, so feel free to mess with it
 Everything is comented as best as I could manage.
 
