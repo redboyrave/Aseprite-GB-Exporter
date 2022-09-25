@@ -10,29 +10,30 @@
     --https://eldred.fr/gb-asm-tutorial/part1/tiles.html
     --https://youtu.be/txkHN6izK2Y?t=344
 
--- Big Thanks to Aseprite community, specifically:
--- Jeremy Behreandt, whose tutorial helped get started on the script
--- 
--- boombuler, for his version of the plugin, (found here : https://github.com/boombuler/aseprite-gbexport)
--- that helped a lot during debugging, and figuring out how to output the tiles
+    -- Big Thanks to Aseprite community, specifically:
+    -- Jeremy Behreandt, whose tutorial helped get started on the script
+    -- 
+    -- boombuler, for his version of the plugin, (found here : https://github.com/boombuler/aseprite-gbexport)
+    -- that helped a lot during debugging, and figuring out how to output the tiles
+    
+    -- ONLY WORKS WITH A SINGLE TILEMAP LAYER
+    
+    
 
--- ONLY WORKS WITH A SINGLE TILEMAP LAYER
-
-
-local img = app.activeImage
 local sprt = app.activeSprite
+local layer = app.activeLayer
 local tile_layers ={}
 local n_layer = 0
 local file_format = ""
-
+    
 local filepath = sprt.filename
--- print(filepath)
+    
+local plt = sprt.palettes[1] -- DEFINES THE PALETTE
 
 local tile_amount = 0
 
 local folder = string.find(filepath,"[^\\]+$") -1
 filepath = string.sub(filepath,1,folder)
--- print(filepath)
 
 local tile_name = ""
 local map_name = ""
@@ -76,12 +77,20 @@ if ColorMode.TILEMAP == nil then --CHECKS FOR TILEMAP
     return
 end
 
-local plt = sprt.palettes[1] -- DEFINES THE PALETTE
 
 if sprt.height % 8 ~= 0 or sprt.width%8 ~= 0 then --CHECKS FOR IMAGE DIMENSIONS, GAMEBOY USES 8X8 TILES, FOR THE IMAGE MUST BE A MULTIPLE
     app.alert {
         title = "ERROR",
         text = "Canvas width or height is not multiple of 8.",
+        buttons = "OK"
+    }
+    return
+end
+
+if (layer.tileset.grid.tileSize.width ~= 8 or layer.tileset.grid.tileSize.height ~= 8) then
+    app.alert {
+        title = "ERROR",
+        text = "Tile Size is not 8x8 px",
         buttons = "OK"
     }
     return
@@ -118,7 +127,7 @@ dlg:newrow()
 
 dlg:label{
     id = "label-02",
-    text = "Only the folder will be used,"
+    text = "Only the folder will be used."
 }
 dlg:file{
     id = "filepath",
@@ -206,7 +215,6 @@ local function tile_to_hex(tile) -- THE FUNCTION (GET PIXEL) FOR THE TILE RETURN
                 end
                 -- WAS USING AND INSTEAD OF & AND APARENTLY THAT WAS MESSING UP THE CODE, THANKS AGAIN TO boombuler FOR HIS CODE (LIFE SAVING)
             end
-                -- print(hi_bit, lo_bit)
                 hex = hex..(string.format("0x".."%02x, ".."0x".."%02x, ",lo_bit,hi_bit))
                 
             end
@@ -326,10 +334,7 @@ local function generate_tilemap()
                 map = map.."\n"            
             end
         end
-        -- print(pix_col.tileI(i()))
         map = map.."0x" .. string.format("%02x",i())..", "
-        -- map = map ..", "
-        -- print(n)
         n = n+1
         -- print("tile is ",i()) --DON'T ASK ME WHY, BUT i() RETURNS THE INDEX OF THE TILES IN THE MAP, SO I'LL TAKE IT
     end
@@ -339,13 +344,13 @@ local function generate_tilemap()
 
 end
 
+
 local function do_code()
-    
-    
-    local tab = export_tilesets(sprt.tilesets) -- CALLS THE 'MAIN' FUNCTION ON THE CODE
-    local map = generate_tilemap()
-    
-    local c_file ,h_file                        -- IS THE STRING TO BE USED WHEN EXPORTING THE TILEMAP
+    local tab = export_tilesets(sprt.tilesets) -- GENERATES TILESET
+    local map = generate_tilemap()  -- GENERATES TILEMAP
+
+
+    local c_file ,h_file                        -- IS THE STRINGS TO BE USED WHEN EXPORTING THE TILEMAP
     if (file_format == "C") then
         c_file, h_file = export_c(tab, map)
         save_to_C_file(c_file,h_file)
